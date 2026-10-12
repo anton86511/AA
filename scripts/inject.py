@@ -44,6 +44,7 @@ def main():
     ap.add_argument("ipa_in"); ap.add_argument("ipa_out")
     ap.add_argument("--keep-extensions", action="store_true",
                     help="keep PlugIns/Extensions/Watch (default: removed, they break sideload signing with a changed bundle ID)")
+    ap.add_argument("--require-substrate", action="store_true", help="fail if dependencies stay unresolved")
     ap.add_argument("--substrate", help="ElleKit/Substrate dylib to bundle as CydiaSubstrate.framework")
     a = ap.parse_args()
 
@@ -118,6 +119,29 @@ def main():
     os.replace(exe + ".new", exe)
     os.chmod(exe, 0o755)
     shutil.rmtree(os.path.join(app, "_CodeSignature"), ignore_errors=True)
+
+    # sanity check: every non-system dependency of the tweak must exist inside the app
+    problems = []
+    tf = macho(dst)
+    for b in tf:
+        for l in b.libraries:
+            n = l.name
+            if n.startswith(("/System/", "/usr/lib/")):
+                continue
+            if n.startswith("@rpath/"):
+                ok = os.path.exists(os.path.join(fw, n[7:])) or os.path.exists(os.path.join(app, n[7:]))
+            elif n.startswith("@loader_path/"):
+                ok = os.path.exists(os.path.join(fw, n[13:]))
+            else:
+                ok = False
+            if not ok and "iSponsorBlock.dylib" not in n:
+                problems.append(n)
+    if problems:
+        print("WARNING: unresolved dependencies (the app WILL crash on launch unless your signer fixes them):")
+        for n in problems:
+            print("   ", n)
+        if a.require_substrate:
+            sys.exit("ERROR: --require-substrate set but dependencies are unresolved")
 
     # re-zip
     if os.path.exists(a.ipa_out):

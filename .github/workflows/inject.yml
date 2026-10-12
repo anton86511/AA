@@ -32,19 +32,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir ek && cd ek
-          gh release download --repo tealbathingsuit/ellekit --pattern '*.deb' || true
-          deb=$(ls *.deb 2>/dev/null | grep -i -E 'iphoneos|arm64' | head -1 || true)
-          if [ -n "$deb" ]; then
-            ar x "$deb" && tar -xf data.tar* || true
-            f=$(find . -name 'libellekit.dylib' | head -1)
-            [ -n "$f" ] && cp "$f" ../substrate.dylib && echo "ElleKit found: $f"
-          fi
-          [ -f ../substrate.dylib ] || echo "::warning::ElleKit not found; building without bundled substrate"
+          gh release download --repo evelyneee/ellekit --pattern '*.deb' --clobber
+          ls -la
+          for deb in *.deb; do
+            mkdir "x_$deb" && (cd "x_$deb" && ar x "../$deb" && tar -xf data.tar*)
+          done
+          find . -name 'libellekit.dylib' -print
+          f=$(find . -name 'libellekit.dylib' -not -type l | head -1)
+          [ -n "$f" ] || { echo "::error::libellekit.dylib not found in ElleKit release"; exit 1; }
+          cp "$f" ../substrate.dylib
+          echo "Using $f"; file ../substrate.dylib
 
       - name: Inject
         run: |
           args=""
-          [ -f substrate.dylib ] && args="--substrate substrate.dylib"
+          if [ -f substrate.dylib ]; then args="--substrate substrate.dylib --require-substrate"; fi
           python3 scripts/inject.py input.ipa YouTube-iSponsorBlock.ipa $args
 
       - uses: actions/upload-artifact@v4
