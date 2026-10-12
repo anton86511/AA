@@ -1,0 +1,12 @@
+iSponsorBlock (arm64, iOS 13+) — built from source: github.com/Galactic-Dev/iSponsorBlock (GPL)
+
+Files
+- iSponsorBlock.dylib : the tweak, for injecting into a YouTube IPA (Sideloadly / AltStore / etc.)
+- iSponsorBlock.bundle: resources (icons, sound, translations). Add it to the IPA's app folder
+                        (YouTube.app/iSponsorBlock.bundle) so the tweak can find it.
+- *.deb               : same tweak packaged for jailbroken devices.
+
+Notes
+- The dylib is NOT code-signed. Sideloadly/AltStore re-sign it when you sign the IPA.
+- Requires a substrate shim (CydiaSubstrate / ElleKit); Sideloadly's "Use Substrate" option handles this.
+- Needs a decrypted YouTube IPA. Tested only to the extent that it compiles and links; not run on a device.

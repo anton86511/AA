@@ -1,0 +1,53 @@
+name: Inject iSponsorBlock into IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "Direct download URL of a DECRYPTED official YouTube .ipa"
+        required: true
+      bundle_substrate:
+        description: "Bundle ElleKit as CydiaSubstrate (untick if your signer already provides substrate)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  inject:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: pip install lief
+
+      - name: Download decrypted IPA
+        run: curl -fL --retry 3 -o input.ipa "${{ inputs.ipa_url }}"
+
+      - name: Fetch ElleKit (substrate replacement)
+        if: ${{ inputs.bundle_substrate }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir ek && cd ek
+          gh release download --repo tealbathingsuit/ellekit --pattern '*.deb' || true
+          deb=$(ls *.deb 2>/dev/null | grep -i -E 'iphoneos|arm64' | head -1 || true)
+          if [ -n "$deb" ]; then
+            ar x "$deb" && tar -xf data.tar* || true
+            f=$(find . -name 'libellekit.dylib' | head -1)
+            [ -n "$f" ] && cp "$f" ../substrate.dylib && echo "ElleKit found: $f"
+          fi
+          [ -f ../substrate.dylib ] || echo "::warning::ElleKit not found; building without bundled substrate"
+
+      - name: Inject
+        run: |
+          args=""
+          [ -f substrate.dylib ] && args="--substrate substrate.dylib"
+          python3 scripts/inject.py input.ipa YouTube-iSponsorBlock.ipa $args
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YouTube-iSponsorBlock
+          path: YouTube-iSponsorBlock.ipa
