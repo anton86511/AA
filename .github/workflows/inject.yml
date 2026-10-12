@@ -24,7 +24,16 @@ jobs:
         run: pip install lief
 
       - name: Download decrypted IPA
-        run: curl -fL --retry 3 -o input.ipa "${{ inputs.ipa_url }}"
+        env:
+          IPA_URL: ${{ inputs.ipa_url }}
+        run: |
+          url="$IPA_URL"
+          case "$url" in
+            *dropbox.com*) url=$(echo "$url" | sed -E 's/([?&])dl=0/\1dl=1/'); case "$url" in *dl=1*) ;; *) url="$url$(case "$url" in *\?*) echo '&';; *) echo '?';; esac)dl=1";; esac;;
+          esac
+          curl -fL --retry 3 -o input.ipa "$url"
+          ls -la input.ipa
+          unzip -tq input.ipa >/dev/null || { echo "::error::Downloaded file is not a valid IPA/zip (wrong link?)"; exit 1; }
 
       - name: Fetch ElleKit (substrate replacement)
         if: ${{ inputs.bundle_substrate }}
