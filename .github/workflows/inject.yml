@@ -6,6 +6,10 @@ on:
       ipa_url:
         description: "Direct download URL of a DECRYPTED official YouTube .ipa"
         required: true
+      substrate_url:
+        description: "Optional: direct URL to a substrate/ElleKit build (.deb, .zip or libellekit.dylib / CydiaSubstrate binary). Leave empty to auto-search."
+        required: false
+        default: ""
       bundle_substrate:
         description: "Bundle ElleKit as CydiaSubstrate (untick if your signer already provides substrate)"
         type: boolean
@@ -39,16 +43,24 @@ jobs:
         if: ${{ inputs.bundle_substrate }}
         env:
           GH_TOKEN: ${{ github.token }}
+          SUB_URL: ${{ inputs.substrate_url }}
         run: |
           mkdir ek && cd ek
-          gh release download --repo evelyneee/ellekit --pattern '*.deb' --clobber
-          ls -la
-          for deb in *.deb; do
-            mkdir "x_$deb" && (cd "x_$deb" && ar x "../$deb" && tar -xf data.tar*)
-          done
-          find . -name 'libellekit.dylib' -print
-          f=$(find . -name 'libellekit.dylib' -not -type l | head -1)
-          [ -n "$f" ] || { echo "::error::libellekit.dylib not found in ElleKit release"; exit 1; }
+          if [ -n "$SUB_URL" ]; then
+            curl -fL --retry 3 -o sub.bin "$SUB_URL"
+          else
+            for repo in evelyneee/ellekit tealbathingsuit/ellekit; do
+              if gh release download --repo "$repo" --pattern '*.deb' --clobber 2>/dev/null; then echo "got release from $repo"; break; fi
+              echo "no downloadable release in $repo"
+            done
+          fi
+          # unpack whatever we got
+          for f in *.deb; do [ -f "$f" ] && { mkdir "x_$f"; (cd "x_$f" && ar x "../$f" && tar -xf data.tar*); }; done
+          [ -f sub.bin ] && { file sub.bin | grep -qi 'zip' && { mkdir xz; unzip -q sub.bin -d xz; } || true; }
+          find . -type f | head -50
+          f=$(find . \( -name 'libellekit.dylib' -o -name 'CydiaSubstrate' -o -name 'libsubstrate.dylib' \) -type f | head -1)
+          if [ -z "$f" ] && [ -f sub.bin ] && file sub.bin | grep -q 'Mach-O'; then f=sub.bin; fi
+          [ -n "$f" ] || { echo "::error::No substrate/ElleKit binary found. Re-run with the substrate_url input, or untick bundle_substrate and sign with Sideloadly 'Use Substrate'."; exit 1; }
           cp "$f" ../substrate.dylib
           echo "Using $f"; file ../substrate.dylib
 
