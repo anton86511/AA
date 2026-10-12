@@ -42,6 +42,8 @@ def patch_tweak(dst, with_substrate):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("ipa_in"); ap.add_argument("ipa_out")
+    ap.add_argument("--keep-extensions", action="store_true",
+                    help="keep PlugIns/Extensions/Watch (default: removed, they break sideload signing with a changed bundle ID)")
     ap.add_argument("--substrate", help="ElleKit/Substrate dylib to bundle as CydiaSubstrate.framework")
     a = ap.parse_args()
 
@@ -63,6 +65,16 @@ def main():
     for b in efat:
         if b.has_encryption_info and b.encryption_info.crypt_id != 0:
             sys.exit("ERROR: this IPA is still FairPlay-encrypted (cryptid != 0). Use a decrypted IPA.")
+
+    if not a.keep_extensions:
+        for d in ("PlugIns", "Extensions", "Watch", "SC_Info"):
+            t = os.path.join(app, d)
+            if os.path.isdir(t):
+                print("Removing", d)
+                shutil.rmtree(t)
+        info.pop("UISupportedDevices", None)
+        with open(os.path.join(app, "Info.plist"), "wb") as f:
+            plistlib.dump(info, f)
 
     fw = os.path.join(app, "Frameworks")
     os.makedirs(fw, exist_ok=True)

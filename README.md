@@ -11,5 +11,6 @@
 
 ## 注意
 - 輸出 IPA 未簽名（簽章已移除），必須自行重新簽名。
+- 預設會移除 `PlugIns`/`Extensions`/`Watch`（App Extension），避免旁載時出現 "Failed to set app extension placeholders" 的 bundle ID 不符錯誤；要保留請加 `--keep-extensions`。
 - 來源 IPA 若仍加密（cryptid≠0）腳本會直接報錯。
 - tweak 來源：Galactic-Dev/iSponsorBlock（GPL）。
