@@ -14,3 +14,6 @@
 - 預設會移除 `PlugIns`/`Extensions`/`Watch`（App Extension），避免旁載時出現 "Failed to set app extension placeholders" 的 bundle ID 不符錯誤；要保留請加 `--keep-extensions`。
 - 來源 IPA 若仍加密（cryptid≠0）腳本會直接報錯。
 - tweak 來源：Galactic-Dev/iSponsorBlock（GPL）。
+
+## 去廣告版本：uYouEnhanced
+Actions → **Build uYouEnhanced (ad-blocking build)**：從 `anton86511/uYouEnhanced`（含 uYou + iSponsorBlock 等）編譯，貼上解密 YouTube IPA 連結即可，成品在本 repo 的 Releases（draft）。
