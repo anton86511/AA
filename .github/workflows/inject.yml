@@ -6,12 +6,8 @@ on:
       ipa_url:
         description: "Direct download URL of a DECRYPTED official YouTube .ipa"
         required: true
-      substrate_url:
-        description: "Optional: direct URL to a substrate/ElleKit build (.deb, .zip or libellekit.dylib / CydiaSubstrate binary). Leave empty to auto-search."
-        required: false
-        default: ""
       bundle_substrate:
-        description: "Bundle ElleKit as CydiaSubstrate (untick if your signer already provides substrate)"
+        description: "Bundle the built-in CydiaSubstrate shim (recommended: keep ticked)"
         type: boolean
         default: true
 
@@ -20,9 +16,13 @@ permissions:
 
 jobs:
   inject:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Install tools
         run: pip install lief
@@ -39,30 +39,14 @@ jobs:
           ls -la input.ipa
           unzip -tq input.ipa >/dev/null || { echo "::error::Downloaded file is not a valid IPA/zip (wrong link?)"; exit 1; }
 
-      - name: Fetch ElleKit (substrate replacement)
+      - name: Build CydiaSubstrate shim
         if: ${{ inputs.bundle_substrate }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SUB_URL: ${{ inputs.substrate_url }}
         run: |
-          mkdir ek && cd ek
-          if [ -n "$SUB_URL" ]; then
-            curl -fL --retry 3 -o sub.bin "$SUB_URL"
-          else
-            for repo in evelyneee/ellekit tealbathingsuit/ellekit; do
-              if gh release download --repo "$repo" --pattern '*.deb' --clobber 2>/dev/null; then echo "got release from $repo"; break; fi
-              echo "no downloadable release in $repo"
-            done
-          fi
-          # unpack whatever we got
-          for f in *.deb; do [ -f "$f" ] && { mkdir "x_$f"; (cd "x_$f" && ar x "../$f" && tar -xf data.tar*); }; done
-          [ -f sub.bin ] && { file sub.bin | grep -qi 'zip' && { mkdir xz; unzip -q sub.bin -d xz; } || true; }
-          find . -type f | head -50
-          f=$(find . \( -name 'libellekit.dylib' -o -name 'CydiaSubstrate' -o -name 'libsubstrate.dylib' \) -type f | head -1)
-          if [ -z "$f" ] && [ -f sub.bin ] && file sub.bin | grep -q 'Mach-O'; then f=sub.bin; fi
-          [ -n "$f" ] || { echo "::error::No substrate/ElleKit binary found. Re-run with the substrate_url input, or untick bundle_substrate and sign with Sideloadly 'Use Substrate'."; exit 1; }
-          cp "$f" ../substrate.dylib
-          echo "Using $f"; file ../substrate.dylib
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=13.0 -dynamiclib \
+            -install_name @rpath/CydiaSubstrate.framework/CydiaSubstrate \
+            -lobjc -o substrate.dylib shim/substrate_shim.c
+          file substrate.dylib
+          nm -gU substrate.dylib
 
       - name: Inject
         run: |
